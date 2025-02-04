@@ -5,8 +5,9 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, HttpUrl
 from uuid import UUID, uuid4
 from datetime import datetime
-from app.services.model_service import create_model_in_db
-from app.services.model_service import get_model_by_id
+from app.services.model_service import *
+from app.services.queue_job_service import QueueJobService
+
 
 from app.models.model import ModelResponse  # Assumendo che il tuo modello sia in models.py
 
@@ -29,6 +30,8 @@ async def create_model(request: ModelCreateRequest):
      try:
         # Chiama il servizio per creare il modello in MongoDB
         model = await create_model_in_db(request)
+        # Invia il job a RabbitMQ
+        queue_service.send_job(model._id)
         return model
      except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

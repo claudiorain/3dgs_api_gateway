@@ -96,7 +96,7 @@ async def list_models_from_db(
     models_cursor = db['models'].find(filters).sort(sort_field, sort_order).skip(skip).limit(limit)
 
     models = []
-    async for model in models_cursor:
+    for model in models_cursor:  # Iterazione sincrona (non asincrona)
         models.append(ModelResponse(
             _id=model['_id'],
             video_url=model['video_url'],
