@@ -3,6 +3,8 @@ from uuid import UUID
 from datetime import datetime
 from app.config.db import get_database  # Assicurati che questa funzione restituisca il client del database
 from app.models.model import ModelResponse  # Assumendo che il tuo modello sia in models.py
+from typing import List, Optional
+from pymongo import ASCENDING, DESCENDING
 
 # Configurazione MongoDB
 
@@ -56,3 +58,53 @@ async def get_model_by_id(model_id: UUID) -> ModelResponse:
         created_at=model['created_at'],
         updated_at=model['updated_at']
     )
+
+async def list_models_from_db(
+    page: int,
+    limit: int,
+    sort_by: Optional[str],
+    order: Optional[str],
+    model_name_filter: Optional[str] = None,  # Filtro per model_name
+    status_filter: Optional[List[str]] = None  # Filtro per status
+) -> List[ModelResponse]:
+    db = get_database()  # Ottieni il database con il client asincrono
+
+    # Imposta il campo di ordinamento
+    if sort_by == "model_name":
+        sort_field = "model_name"
+    elif sort_by == "status":
+        sort_field = "status"
+    else:
+        sort_field = "created_at"  # Default sorting by created_at
+
+    # Imposta l'ordine dell'ordinamento
+    sort_order = ASCENDING if order == "asc" else DESCENDING
+
+    # Paginazione: calcola l'offset
+    skip = (page - 1) * limit
+
+    # Costruisci il filtro
+    filters = {}
+
+    if model_name_filter:
+        filters["model_name"] = {"$regex": model_name_filter, "$options": "i"}  # Filtro LIKE (case-insensitive)
+
+    if status_filter:
+        filters["status"] = {"$in": status_filter}  # Filtro OR sui status (match con uno dei valori)
+
+    # Esegui la query con filtri, paginazione e ordinamento
+    models_cursor = db['models'].find(filters).sort(sort_field, sort_order).skip(skip).limit(limit)
+
+    models = []
+    async for model in models_cursor:
+        models.append(ModelResponse(
+            _id=model['_id'],
+            video_url=model['video_url'],
+            model_name=model['model_name'],
+            model_folder_url=model['model_folder_url'],
+            status=model['status'],
+            created_at=model['created_at'],
+            updated_at=model['updated_at']
+        ))
+
+    return models

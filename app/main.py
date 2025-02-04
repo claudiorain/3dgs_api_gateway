@@ -38,13 +38,22 @@ async def create_model(request: ModelCreateRequest):
 async def list_models(
     page: int = Query(1, alias="page", ge=1),
     limit: int = Query(10, alias="limit", ge=1, le=100),
-    sort_by: Optional[str] = Query(None, regex="^(model_name|status)$"),
-    order: Optional[str] = Query("asc", regex="^(asc|desc)$")
+    sort_by: Optional[str] = Query(None, regex="^(model_name|status|created_at)$"),
+    order: Optional[str] = Query("asc", regex="^(asc|desc)$"),
+    model_name: Optional[str] = Query(None),  # Filtro per model_name
+    status: Optional[List[str]] = Query(None)  # Filtro per status
 ):
     """
-    Restituisce la lista dei modelli con paginazione e ordinamento opzionale.
+    Restituisce la lista dei modelli con paginazione, ordinamento e filtri opzionali.
     """
-    pass  # Implementazione futura
+    try:
+        models = await list_models_from_db(
+            page, limit, sort_by, order, model_name_filter=model_name, status_filter=status
+        )
+        return models
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # 3️⃣ Endpoint per eliminare un modello tramite ID
 @app.delete("/models/{model_id}", response_model=dict)
@@ -67,6 +76,8 @@ async def get_model(model_id: UUID):
         return model
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "success", "message": "API is up and running!"}
