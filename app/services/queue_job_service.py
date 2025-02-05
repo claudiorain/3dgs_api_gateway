@@ -1,16 +1,16 @@
 import pika
 import json
 import os
+from app.config.message_queue import get_connection  # Assicurati che questa funzione restituisca il client del database
+from app.config.message_queue import get_channel  # Assicurati che questa funzione restituisca il client del database
 
 class QueueJobService:
-    def __init__(self, rabbitmq_uri=None):
-        # Usa il valore di ambiente RABBITMQ_URI o una URL di default
-        self.rabbitmq_uri = rabbitmq_uri or os.getenv('RABBITMQ_URI', 'amqp://rabbitmq:5672')
-        self.connection = pika.BlockingConnection(pika.URLParameters(self.rabbitmq_uri))
-        self.channel = self.connection.channel()
-        self.channel.queue_declare(queue='jobs', durable=True)  # Assicuriamoci che la coda 'jobs' esista
-        print("Connected to RabbitMQ and queue 'jobs' declared.")
-    
+
+    def __init__(self):
+        """Inizializza la connessione a RabbitMQ (può rimanere None finché non serve)."""
+        self.connection = get_connection()
+        self.channel = get_channel(self.connection)
+
     def create_job_message(self, model_id: str):
         # Crea un messaggio con l'id del modello
         job_message = {
@@ -37,5 +37,10 @@ class QueueJobService:
 
         print(f"Job message for model_id {model_id} sent to queue 'jobs'.")
 
-    def close(self):
-        self.connection.close()
+        
+
+    def handle_exit(self, signum, frame):
+        """Gestisce la chiusura dell'applicazione"""
+        print("\n🛑 Closing application...")
+        close_connection(self.connection)
+        sys.exit(0)

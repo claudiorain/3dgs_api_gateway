@@ -5,33 +5,28 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, HttpUrl
 from uuid import UUID, uuid4
 from datetime import datetime
-from app.services.model_service import *
+from app.services.model_service import ModelService
 from app.services.queue_job_service import QueueJobService
 
 
 from app.models.model import ModelResponse  # Assumendo che il tuo modello sia in models.py
+from app.models.model import ModelCreateRequest  # Assumendo che il tuo modello sia in models.py
 
 app = FastAPI()
+queue_job_service = QueueJobService()
+model_service = ModelService()
 
-# Modello dati
-class ModelCreateRequest(BaseModel):
-    video_url: str  
-    model_name: str
 
-    class Config:
-        # Imposta come serializzare HttpUrl
-        json_encoders = {
-            HttpUrl: lambda v: str(v)  # Converti il tipo HttpUrl in stringa
-        }
 
 # 1️⃣ Endpoint per creare un nuovo modello
 @app.post("/models/", response_model=ModelResponse)
 async def create_model(request: ModelCreateRequest):
      try:
         # Chiama il servizio per creare il modello in MongoDB
-        model = await create_model_in_db(request)
+        model = await model_service.create_model_in_db(request)
+        print('MODEL:' + str(model))
         # Invia il job a RabbitMQ
-        queue_service.send_job(model._id)
+        queue_job_service.send_job(model['_id'])
         return model
      except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -50,7 +45,7 @@ async def list_models(
     Restituisce la lista dei modelli con paginazione, ordinamento e filtri opzionali.
     """
     try:
-        models = await list_models_from_db(
+        models = await model_service.list_models_from_db(
             page, limit, sort_by, order, model_name_filter=model_name, status_filter=status
         )
         return models
@@ -73,7 +68,7 @@ async def get_model(model_id: UUID):
     """
     try:
         # Chiama il servizio per ottenere il modello dal database
-        model = await get_model_by_id(model_id)
+        model = await model_service.get_model_by_id(model_id)
         if model is None:
             raise HTTPException(status_code=404, detail="Model not found")
         return model
