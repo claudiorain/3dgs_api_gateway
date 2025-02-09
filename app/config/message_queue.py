@@ -2,16 +2,25 @@
 import pika
 import os
 
+hostname = os.getenv('RABBITMQ_HOSTNAME')
+port = os.getenv('RABBITMQ_PORT')
+user = os.getenv('RABBITMQ_USER')
+password = os.getenv('RABBITMQ_PASS')
+
 def get_connection():
     # Usa il valore di ambiente RABBITMQ_URI o una URL di defaultamqp://<user>:<password>@<hostname>:<port>
-    rabbitmq_uri = os.getenv('RABBITMQ_URI')
-    print('URI: ' + rabbitmq_uri)
-    connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_uri))
+    credentials = pika.PlainCredentials(user, password)
+    parameters = pika.ConnectionParameters(hostname,
+                                   port,
+                                   '/',
+                                   credentials,heartbeat=0)
+
+    connection = pika.BlockingConnection(parameters)
     return connection
 
 def get_channel(connection):
     channel = connection.channel()
-    channel.queue_declare(queue='jobs', durable=True)  # Assicuriamoci che la coda 'jobs' esista
+    channel.queue_declare(queue='3dgs', durable=True)  # Assicuriamoci che la coda 'jobs' esista
     return channel
 
 def close_connection(connection):

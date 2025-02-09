@@ -28,14 +28,14 @@ class QueueJobService:
         # Invia il messaggio alla coda
         self.channel.basic_publish(
             exchange='',  # Default exchange
-            routing_key='jobs',  # La coda a cui inviare
+            routing_key='3dgs',  # La coda a cui inviare
             body=message,  # Il messaggio da inviare
             properties=pika.BasicProperties(
                 delivery_mode=2,  # Rendere il messaggio persistente
             )
         )
 
-        print(f"Job message for model_id {model_id} sent to queue 'jobs'.")
+        print(f"Job message for model_id {model_id} sent to queue '3dgs'.")
 
         
 

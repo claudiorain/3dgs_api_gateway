@@ -2,7 +2,6 @@ from http.client import HTTPException
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel, HttpUrl
 from uuid import UUID, uuid4
 from datetime import datetime
 from app.services.model_service import ModelService
