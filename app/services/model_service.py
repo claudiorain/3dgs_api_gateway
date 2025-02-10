@@ -19,15 +19,15 @@ class ModelService:
     # Funzione per creare un modello nel DB
     async def create_model_in_db(self, request: ModelCreateRequest):
 
-        model_id = str(uuid4())
+        model_id = request.model_id
         current_time = datetime.utcnow()
 
         # Documento da inserire in MongoDB
         model_data = {
             "_id": model_id,
-            "video_url": request.video_url,
+            "filename": request.filename,
             "model_name": request.model_name,
-            "model_folder_url": "",  # Vuoto per ora
+            "model_output_path": "",  # Vuoto per ora
             "status": "QUEUED",
             "created_at": current_time,
             "updated_at": current_time
@@ -55,9 +55,9 @@ class ModelService:
         # Restituisci un oggetto del tipo ModelResponse
         return ModelResponse(
             _id=model['_id'],
-            video_url=model['video_url'],
+            filename=model['filename'],
             model_name=model['model_name'],
-            model_folder_url=model['model_folder_url'],
+            model_output_path=model['model_output_path'],
             status=model['status'],
             created_at=model['created_at'],
             updated_at=model['updated_at']
@@ -102,9 +102,9 @@ class ModelService:
         for model in models_cursor:  # Iterazione sincrona (non asincrona)
             models.append(ModelResponse(
                 _id=model['_id'],
-                video_url=model['video_url'],
+                filename=model['filename'],
                 model_name=model['model_name'],
-                model_folder_url=model['model_folder_url'],
+                model_output_path=model['model_output_path'],
                 status=model['status'],
                 created_at=model['created_at'],
                 updated_at=model['updated_at']
