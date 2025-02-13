@@ -6,14 +6,17 @@ from uuid import UUID, uuid4
 from datetime import datetime
 from app.services.model_service import ModelService
 from app.services.queue_job_service import QueueJobService
+from app.services.repository_service import RepositoryService
 
 
 from app.models.model import ModelResponse  # Assumendo che il tuo modello sia in models.py
 from app.models.model import ModelCreateRequest  # Assumendo che il tuo modello sia in models.py
+from app.models.model import PresignedUrlRequest  # Assumendo che il tuo modello sia in models.py
 
 app = FastAPI()
 queue_job_service = QueueJobService()
 model_service = ModelService()
+repository_service = RepositoryService()
 
 
 
@@ -74,7 +77,48 @@ async def get_model(model_id: UUID):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 1️⃣ Ottieni un Presigned URL per l'upload
+@app.post("/s3/upload-url/")
+async def get_upload_url(request: PresignedUrlRequest):
+    """
+    Genera un UUID per il modello e restituisce un URL presigned per l'upload.
+    Il file verrà caricato dentro una cartella con il nome dell'UUID.
+    """
+    # 1️⃣ Genera UUID per la cartella del modello
+    model_id = str(uuid4())
+    s3_key = f"models/{model_id}/{request.filename}"  # File all'interno della cartella
 
+    try:
+        presigned_url = repository_service.generate_presigned_url_upload(
+            s3_key,request.content_type
+        )
+
+        # 3️⃣ Restituisci UUID e URL per l'upload
+        return {"model_id": model_id, "upload_url": presigned_url,"video_uri": s3_key}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/models/{model_id}/download-url")
+async def get_presigned_download_url(model_id: str):
+    """
+    Genera un presigned URL per scaricare un file specifico di un modello.
+    """
+    try:
+        # Recupera il modello dal DB usando l'ID del modello
+        model = model_service.get_model_by_id(model_id)
+
+        # Estrai la video_uri (s3_key) dal modello
+        s3_key = model.video_uri
+
+        # Genera il presigned URL per il download
+        presigned_url = repository_service.generate_presigned_url_upload(s3_key)
+
+        return {"download_url": presigned_url, "video_uri": s3_key}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+    
 @app.get("/health")
 async def health_check():
     return {"status": "success", "message": "API is up and running!"}

@@ -25,7 +25,7 @@ class ModelService:
         # Documento da inserire in MongoDB
         model_data = {
             "_id": model_id,
-            "filename": request.filename,
+            "video_uri": request.video_uri,
             "model_name": request.model_name,
             "model_output_path": "",  # Vuoto per ora
             "status": "QUEUED",
@@ -55,7 +55,7 @@ class ModelService:
         # Restituisci un oggetto del tipo ModelResponse
         return ModelResponse(
             _id=model['_id'],
-            filename=model['filename'],
+            video_uri=model['video_uri'],
             model_name=model['model_name'],
             model_output_path=model['model_output_path'],
             status=model['status'],
@@ -102,7 +102,7 @@ class ModelService:
         for model in models_cursor:  # Iterazione sincrona (non asincrona)
             models.append(ModelResponse(
                 _id=model['_id'],
-                filename=model['filename'],
+                video_uri=model['video_uri'],
                 model_name=model['model_name'],
                 model_output_path=model['model_output_path'],
                 status=model['status'],

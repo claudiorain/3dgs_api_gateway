@@ -42,5 +42,5 @@ class QueueJobService:
     def handle_exit(self, signum, frame):
         """Gestisce la chiusura dell'applicazione"""
         print("\n🛑 Closing application...")
-        close_connection(self.connection)
+        self.close_connection(self.connection)
         sys.exit(0)

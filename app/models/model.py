@@ -5,7 +5,7 @@ from datetime import datetime
 
 class ModelResponse(BaseModel):
     id: str = Field(alias='_id')
-    filename: str
+    video_uri: str
     model_name: str
     model_output_path: str
     status: str
@@ -15,7 +15,7 @@ class ModelResponse(BaseModel):
 # Modello dati
 class ModelCreateRequest(BaseModel):
     model_id: str
-    filename: str  
+    video_uri: str  
     model_name: str
 
     class Config:
@@ -23,4 +23,8 @@ class ModelCreateRequest(BaseModel):
         json_encoders = {
             HttpUrl: lambda v: str(v)  # Converti il tipo HttpUrl in stringa
         }
+
+class PresignedUrlRequest(BaseModel):
+    filename: str  # Nome del file che si vuole caricare
+    content_type: str  # Tipo di contenuto (es. "image/png", "application/pdf")
 
