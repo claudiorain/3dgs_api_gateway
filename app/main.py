@@ -1,7 +1,9 @@
 from http.client import HTTPException
 from typing import List, Optional
 
+
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID, uuid4
 from datetime import datetime
 from app.services.model_service import ModelService
@@ -18,6 +20,18 @@ queue_job_service = QueueJobService()
 model_service = ModelService()
 repository_service = RepositoryService()
 
+# Configura il middleware CORS
+origins = [
+    "http://localhost:5173",  # Frontend in esecuzione su questa porta
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Consenti le origini specificate
+    allow_credentials=True,
+    allow_methods=["*"],  # Permetti tutti i metodi HTTP (GET, POST, PUT, DELETE, ecc.)
+    allow_headers=["*"],  # Permetti tutte le intestazioni
+)
 
 
 # 1️⃣ Endpoint per creare un nuovo modello
@@ -92,10 +106,15 @@ async def get_upload_url(request: PresignedUrlRequest):
         presigned_url = repository_service.generate_presigned_url_upload(
             s3_key,request.content_type
         )
+       
+        response = {"model_id": model_id, "upload_url": presigned_url,"video_uri": s3_key}
+        # Logga la risposta
+        print(f"RESPONSE: {response}")
 
         # 3️⃣ Restituisci UUID e URL per l'upload
-        return {"model_id": model_id, "upload_url": presigned_url,"video_uri": s3_key}
+        return response
     except Exception as e:
+        print(f"ERRORE: {str(e)}")
         return {"error": str(e)}
 
 @app.get("/models/{model_id}/download-url")

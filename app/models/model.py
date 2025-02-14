@@ -6,8 +6,8 @@ from datetime import datetime
 class ModelResponse(BaseModel):
     id: str = Field(alias='_id')
     video_uri: str
-    model_name: str
-    model_output_path: str
+    title: str
+    output_path: str
     status: str
     created_at: datetime
     updated_at: datetime
@@ -16,7 +16,7 @@ class ModelResponse(BaseModel):
 class ModelCreateRequest(BaseModel):
     model_id: str
     video_uri: str  
-    model_name: str
+    title: str
 
     class Config:
         # Imposta come serializzare HttpUrl

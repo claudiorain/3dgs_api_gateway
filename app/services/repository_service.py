@@ -1,4 +1,4 @@
-from config.s3 import get_client
+from app.config.s3 import get_client
 import os
 from botocore.exceptions import NoCredentialsError
 
@@ -33,11 +33,21 @@ class RepositoryService:
         Genera un Presigned URL per l'upload di un file su S3.
         """
         try:
+            print(f"s3_key: {s3_key}")
+            print(f"content_type: {content_type}")
+            print(f"s3_key type: {type(s3_key)}")
+            print(f"content_type type: {type(content_type)}")
+            print(f"content_type type: {type(S3_BUCKET)}")
+
             url = self.client.generate_presigned_url(
                 "put_object",
                 Params={"Bucket": S3_BUCKET, "Key": s3_key, "ContentType": content_type},
                 ExpiresIn=expiration,
             )
+            if not isinstance(url, str) or not url:
+                raise Exception(f"Invalid URL returned: {url}")
+            print(f"url: {str(url)}")
+            print(f"url: {url}")
             return url
         except NoCredentialsError:
             raise Exception("Credenziali AWS mancanti o non valide.") 

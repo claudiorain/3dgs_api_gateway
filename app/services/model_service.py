@@ -26,9 +26,9 @@ class ModelService:
         model_data = {
             "_id": model_id,
             "video_uri": request.video_uri,
-            "model_name": request.model_name,
-            "model_output_path": "",  # Vuoto per ora
+            "title": request.title,
             "status": "QUEUED",
+            "output_path": "",
             "created_at": current_time,
             "updated_at": current_time
         }
@@ -56,8 +56,8 @@ class ModelService:
         return ModelResponse(
             _id=model['_id'],
             video_uri=model['video_uri'],
-            model_name=model['model_name'],
-            model_output_path=model['model_output_path'],
+            title=model['title'],
+            output_path=model['output_path'],
             status=model['status'],
             created_at=model['created_at'],
             updated_at=model['updated_at']
@@ -68,13 +68,13 @@ class ModelService:
         limit: int,
         sort_by: Optional[str],
         order: Optional[str],
-        model_name_filter: Optional[str] = None,  # Filtro per model_name
+        title_filter: Optional[str] = None,  # Filtro per title
         status_filter: Optional[List[str]] = None  # Filtro per status
     ) -> List[ModelResponse]:
 
         # Imposta il campo di ordinamento
-        if sort_by == "model_name":
-            sort_field = "model_name"
+        if sort_by == "title":
+            sort_field = "title"
         elif sort_by == "status":
             sort_field = "status"
         else:
@@ -89,8 +89,8 @@ class ModelService:
         # Costruisci il filtro
         filters = {}
 
-        if model_name_filter:
-            filters["model_name"] = {"$regex": model_name_filter, "$options": "i"}  # Filtro LIKE (case-insensitive)
+        if title_filter:
+            filters["title"] = {"$regex": title_filter, "$options": "i"}  # Filtro LIKE (case-insensitive)
 
         if status_filter:
             filters["status"] = {"$in": status_filter}  # Filtro OR sui status (match con uno dei valori)
@@ -103,8 +103,8 @@ class ModelService:
             models.append(ModelResponse(
                 _id=model['_id'],
                 video_uri=model['video_uri'],
-                model_name=model['model_name'],
-                model_output_path=model['model_output_path'],
+                title=model['title'],
+                output_path=model['output_path'],
                 status=model['status'],
                 created_at=model['created_at'],
                 updated_at=model['updated_at']
