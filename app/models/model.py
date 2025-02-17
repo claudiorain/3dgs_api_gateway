@@ -2,15 +2,25 @@
 from pydantic import BaseModel, HttpUrl,Field
 from uuid import UUID
 from datetime import datetime
+from typing import List
 
 class ModelResponse(BaseModel):
     id: str = Field(alias='_id')
     video_uri: str
+    thumbnail_s3_key: str
+    thumbnail_url: str
     title: str
-    output_path: str
+    output_s3_key: str
+    output_url: str
     status: str
     created_at: datetime
     updated_at: datetime
+
+class PaginatedModelResponse(BaseModel):
+    models: List[ModelResponse]
+    totalCount: int
+    totalPages: int
+    page: int
 
 # Modello dati
 class ModelCreateRequest(BaseModel):

@@ -1,9 +1,12 @@
 from app.config.s3 import get_client
 import os
 from botocore.exceptions import NoCredentialsError
+from cachetools import TTLCache
+from datetime import datetime, timedelta
 
 S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 CACHE_DIR = "/app/cache_s3"  # 📌 Directory locale per la cache
+presigned_url_cache = TTLCache(maxsize=1000, ttl=3600)  # TTL iniziale di 60 minuti
 
 class RepositoryService:
     def __init__(self):
@@ -56,12 +59,34 @@ class RepositoryService:
         """
         Genera un Presigned URL per il download di un file da S3.
         """
+
+        cache_key = f"{S3_BUCKET}:{s3_key}"
+        # Ottieni il tempo corrente
+        current_time = datetime.utcnow()
+
+        # Verifica se l'URL è già nella cache
+        if cache_key in presigned_url_cache:
+            cached_data = presigned_url_cache[cache_key]
+            expiry_time = cached_data["expiry_time"]
+
+            # Verifica se l'URL è ancora valido
+            if current_time < expiry_time:
+                return cached_data["url"]
+        
         try:
-            url = self.s3_client.generate_presigned_url(
+            url = self.client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": S3_BUCKET, "Key": s3_key},
                 ExpiresIn=expiration,
             )
+             # Calcola il tempo di scadenza
+            expiry_time = datetime.utcnow() + timedelta(seconds=expiration)
+
+            # Memorizza l'URL e il tempo di scadenza nella cache
+            presigned_url_cache[cache_key] = {
+                "url": url,
+                "expiry_time": expiry_time
+            }
             return url
         except NoCredentialsError:
             raise Exception("Credenziali AWS mancanti o non valide.")

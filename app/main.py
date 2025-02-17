@@ -12,6 +12,7 @@ from app.services.repository_service import RepositoryService
 
 
 from app.models.model import ModelResponse  # Assumendo che il tuo modello sia in models.py
+from app.models.model import PaginatedModelResponse  # Assumendo che il tuo modello sia in models.py
 from app.models.model import ModelCreateRequest  # Assumendo che il tuo modello sia in models.py
 from app.models.model import PresignedUrlRequest  # Assumendo che il tuo modello sia in models.py
 
@@ -48,23 +49,33 @@ async def create_model(request: ModelCreateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # 2️⃣ Endpoint per ottenere la lista dei modelli con paginazione e sorting
-@app.get("/models/", response_model=List[ModelResponse])
+@app.get("/models/", response_model=PaginatedModelResponse)
 async def list_models(
     page: int = Query(1, alias="page", ge=1),
     limit: int = Query(10, alias="limit", ge=1, le=100),
     sort_by: Optional[str] = Query(None, regex="^(model_name|status|created_at)$"),
     order: Optional[str] = Query("asc", regex="^(asc|desc)$"),
-    model_name: Optional[str] = Query(None),  # Filtro per model_name
+    title: Optional[str] = Query(None),  # Filtro per model_name
     status: Optional[List[str]] = Query(None)  # Filtro per status
 ):
     """
     Restituisce la lista dei modelli con paginazione, ordinamento e filtri opzionali.
     """
     try:
-        models = await model_service.list_models_from_db(
-            page, limit, sort_by, order, model_name_filter=model_name, status_filter=status
+        models, total_count = model_service.list_models_from_db(
+            page, limit, sort_by, order, title_filter=title, status_filter=status
         )
-        return models
+        
+        # Calcoliamo il numero di pagine
+        total_pages = (total_count + limit - 1) // limit  # Calcola il numero di pagine
+
+        # Risposta con paginazione
+        return PaginatedModelResponse(
+            models=models,
+            totalCount=total_count,
+            totalPages=total_pages,
+            page=page
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -84,7 +95,7 @@ async def get_model(model_id: UUID):
     """
     try:
         # Chiama il servizio per ottenere il modello dal database
-        model = await model_service.get_model_by_id(model_id)
+        model = model_service.get_model_by_id(model_id)
         if model is None:
             raise HTTPException(status_code=404, detail="Model not found")
         return model
@@ -115,26 +126,6 @@ async def get_upload_url(request: PresignedUrlRequest):
         return response
     except Exception as e:
         print(f"ERRORE: {str(e)}")
-        return {"error": str(e)}
-
-@app.get("/models/{model_id}/download-url")
-async def get_presigned_download_url(model_id: str):
-    """
-    Genera un presigned URL per scaricare un file specifico di un modello.
-    """
-    try:
-        # Recupera il modello dal DB usando l'ID del modello
-        model = model_service.get_model_by_id(model_id)
-
-        # Estrai la video_uri (s3_key) dal modello
-        s3_key = model.video_uri
-
-        # Genera il presigned URL per il download
-        presigned_url = repository_service.generate_presigned_url_upload(s3_key)
-
-        return {"download_url": presigned_url, "video_uri": s3_key}
-
-    except Exception as e:
         return {"error": str(e)}
 
     

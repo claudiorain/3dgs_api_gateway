@@ -3,11 +3,13 @@ from uuid import UUID
 from datetime import datetime
 from app.config.db import get_database  # Assicurati che questa funzione restituisca il client del database
 from app.models.model import ModelResponse  # Assumendo che il tuo modello sia in models.py
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from pymongo import ASCENDING, DESCENDING
 from app.models.model import ModelCreateRequest  # Assumendo che il tuo modello sia in models.py
-
+from app.services.repository_service import RepositoryService
 # Configurazione MongoDB
+
+repository_service = RepositoryService()
 
 # Esempio di connessione al DB
 class ModelService:
@@ -26,9 +28,12 @@ class ModelService:
         model_data = {
             "_id": model_id,
             "video_uri": request.video_uri,
+            "thumbnail_s3_key": "",
+            "thumbnail_url": "",
             "title": request.title,
             "status": "QUEUED",
-            "output_path": "",
+            "output_s3_key": "",
+            "output_url": "",
             "created_at": current_time,
             "updated_at": current_time
         }
@@ -41,7 +46,7 @@ class ModelService:
             print(f"Error inserting document: {e}")
             raise
 
-    async def get_model_by_id(self, model_id: UUID) -> ModelResponse:
+    def get_model_by_id(self, model_id: UUID) -> ModelResponse:
         """
         Recupera un modello dal database usando l'ID.
         """
@@ -52,62 +57,75 @@ class ModelService:
         if model is None:
             return None
 
+        thumbnail_url = repository_service.generate_presigned_url_download( model['thumbnail_s3_key'])
+        if model['output_s3_key'] is not None:
+            output_url = repository_service.generate_presigned_url_download( model['output_s3_key'])
+        else: 
+            output_url = ''
         # Restituisci un oggetto del tipo ModelResponse
         return ModelResponse(
             _id=model['_id'],
             video_uri=model['video_uri'],
+            thumbnail_url=thumbnail_url,  # sostituisci con presigned URL
+            thumbnail_s3_key='',  # sostituisci con presigned URL
             title=model['title'],
-            output_path=model['output_path'],
+            output_url=output_url,  # sostituisci con presigned URL
+            output_s3_key='',
             status=model['status'],
             created_at=model['created_at'],
             updated_at=model['updated_at']
         )
 
-    async def list_models_from_db(self,
+    def list_models_from_db(self,
         page: int,
         limit: int,
         sort_by: Optional[str],
         order: Optional[str],
         title_filter: Optional[str] = None,  # Filtro per title
         status_filter: Optional[List[str]] = None  # Filtro per status
-    ) -> List[ModelResponse]:
+    ) -> Tuple[List[ModelResponse], int]:  # Ora restituisce anche il totale
 
         # Imposta il campo di ordinamento
-        if sort_by == "title":
-            sort_field = "title"
-        elif sort_by == "status":
-            sort_field = "status"
-        else:
-            sort_field = "created_at"  # Default sorting by created_at
-
-        # Imposta l'ordine dell'ordinamento
+        sort_field = "title" if sort_by == "title" else "status" if sort_by == "status" else "created_at"
         sort_order = ASCENDING if order == "asc" else DESCENDING
 
-        # Paginazione: calcola l'offset
+        # Calcola l'offset per la paginazione
         skip = (page - 1) * limit
 
-        # Costruisci il filtro
+        # Costruisci i filtri di ricerca
         filters = {}
-
         if title_filter:
-            filters["title"] = {"$regex": title_filter, "$options": "i"}  # Filtro LIKE (case-insensitive)
-
+            filters["title"] = {"$regex": title_filter, "$options": "i"}  # LIKE case-insensitive
         if status_filter:
-            filters["status"] = {"$in": status_filter}  # Filtro OR sui status (match con uno dei valori)
+            filters["status"] = {"$in": status_filter}  # Filtro OR su status
 
-        # Esegui la query con filtri, paginazione e ordinamento
-        models_cursor = db['models'].find(filters).sort(sort_field, sort_order).skip(skip).limit(limit)
+        # Conta il numero totale di modelli che soddisfano il filtro
+        total_count = self.db['models'].count_documents(filters)
+
+        # Query per ottenere i modelli con filtri, paginazione e ordinamento
+        models_cursor = self.db['models'].find(filters).sort(sort_field, sort_order).skip(skip).limit(limit)
 
         models = []
-        for model in models_cursor:  # Iterazione sincrona (non asincrona)
+        for model in models_cursor:
+            # Genera i presigned URL per thumbnail_s3_key e output_s3_key
+            thumbnail_url = repository_service.generate_presigned_url_download( model['thumbnail_s3_key'])
+            if model['output_s3_key'] is not None:
+                output_url = repository_service.generate_presigned_url_download( model['output_s3_key'])
+            else: 
+                output_url = ''
+
             models.append(ModelResponse(
-                _id=model['_id'],
+                _id=str(model['_id']),
                 video_uri=model['video_uri'],
+                thumbnail_url=thumbnail_url,  # sostituisci con presigned URL
+                thumbnail_s3_key='',  # sostituisci con presigned URL
                 title=model['title'],
-                output_path=model['output_path'],
+                output_url=output_url,  # sostituisci con presigned URL
+                output_s3_key='',
                 status=model['status'],
                 created_at=model['created_at'],
                 updated_at=model['updated_at']
             ))
 
-        return models
+        return models, total_count
+
