@@ -28,12 +28,8 @@ class ModelService:
         model_data = {
             "_id": model_id,
             "video_uri": request.video_uri,
-            "thumbnail_s3_key": "",
-            "thumbnail_url": "",
             "title": request.title,
             "status": "QUEUED",
-            "output_s3_key": "",
-            "output_url": "",
             "created_at": current_time,
             "updated_at": current_time
         }
@@ -57,11 +53,12 @@ class ModelService:
         if model is None:
             return None
 
-        thumbnail_url = repository_service.generate_presigned_url_download( model['thumbnail_s3_key'])
-        if model['output_s3_key'] is not None:
-            output_url = repository_service.generate_presigned_url_download( model['output_s3_key'])
-        else: 
-            output_url = ''
+        thumbnail_s3_key = model.get('thumbnail_s3_key', None)
+        output_s3_key = model.get('output_s3_key', None)
+
+        # Controlla che la chiave non sia vuota prima di generare gli URL presignati
+        thumbnail_url = repository_service.generate_presigned_url_download(thumbnail_s3_key) if thumbnail_s3_key else None
+        output_url = repository_service.generate_presigned_url_download(output_s3_key) if output_s3_key else None
         # Restituisci un oggetto del tipo ModelResponse
         return ModelResponse(
             _id=model['_id'],
@@ -105,27 +102,30 @@ class ModelService:
         # Query per ottenere i modelli con filtri, paginazione e ordinamento
         models_cursor = self.db['models'].find(filters).sort(sort_field, sort_order).skip(skip).limit(limit)
 
+        print('READ MODELS')
         models = []
         for model in models_cursor:
-            # Genera i presigned URL per thumbnail_s3_key e output_s3_key
-            thumbnail_url = repository_service.generate_presigned_url_download( model['thumbnail_s3_key'])
-            if model['output_s3_key'] is not None:
-                output_url = repository_service.generate_presigned_url_download( model['output_s3_key'])
-            else: 
-                output_url = ''
+            thumbnail_s3_key = model.get('thumbnail_s3_key', None)
+            output_s3_key = model.get('output_s3_key', None)
+
+            # Controlla che la chiave non sia vuota prima di generare gli URL presignati
+            thumbnail_url = repository_service.generate_presigned_url_download(thumbnail_s3_key) if thumbnail_s3_key else None
+            output_url = repository_service.generate_presigned_url_download(output_s3_key) if output_s3_key else None
+
+            print('URL SETTED')
 
             models.append(ModelResponse(
                 _id=str(model['_id']),
                 video_uri=model['video_uri'],
                 thumbnail_url=thumbnail_url,  # sostituisci con presigned URL
-                thumbnail_s3_key='',  # sostituisci con presigned URL
                 title=model['title'],
                 output_url=output_url,  # sostituisci con presigned URL
-                output_s3_key='',
                 status=model['status'],
                 created_at=model['created_at'],
                 updated_at=model['updated_at']
             ))
+
+            print('RESPONSE BUILT')
 
         return models, total_count
 
