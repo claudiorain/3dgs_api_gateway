@@ -2,17 +2,21 @@
 from pydantic import BaseModel, HttpUrl,Field
 from uuid import UUID
 from datetime import datetime
-from typing import List,Optional
+from typing import List,Optional,Dict
 
 class ModelResponse(BaseModel):
     id: str = Field(alias='_id')
-    video_uri: str
+    video_s3_key: str
     thumbnail_s3_key: Optional[str] = None
     thumbnail_url: Optional[str] = None
     title: str
+    description: Optional[str] = None
     output_s3_key: Optional[str] = None
     output_url: Optional[str] = None
     status: str
+    engine: str
+    error_message: Optional[str] = None,
+    results: Optional[Dict[str, float]] = None  # Aggiungi il campo results, che è opzionale
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -25,8 +29,10 @@ class PaginatedModelResponse(BaseModel):
 # Modello dati
 class ModelCreateRequest(BaseModel):
     model_id: str
-    video_uri: str  
+    video_s3_key: str  
     title: str
+    description: str
+    engine: str
 
     class Config:
         # Imposta come serializzare HttpUrl

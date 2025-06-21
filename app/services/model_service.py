@@ -27,9 +27,11 @@ class ModelService:
         # Documento da inserire in MongoDB
         model_data = {
             "_id": model_id,
-            "video_uri": request.video_uri,
+            "video_s3_key": request.video_s3_key,
             "title": request.title,
+            "description": request.description,
             "status": "QUEUED",
+            "engine": request.engine,
             "created_at": current_time,
             "updated_at": current_time
         }
@@ -55,22 +57,32 @@ class ModelService:
 
         thumbnail_s3_key = model.get('thumbnail_s3_key', None)
         output_s3_key = model.get('output_s3_key', None)
+        error_message = model.get('error_message', None)
+        description = model.get('description', None)
 
         # Controlla che la chiave non sia vuota prima di generare gli URL presignati
         thumbnail_url = repository_service.generate_presigned_url_download(thumbnail_s3_key) if thumbnail_s3_key else None
         output_url = repository_service.generate_presigned_url_download(output_s3_key) if output_s3_key else None
         # Restituisci un oggetto del tipo ModelResponse
+
+        # Estrai i risultati se esistono, altrimenti metti None
+        results = model.get('results', None)
+        
         return ModelResponse(
             _id=model['_id'],
-            video_uri=model['video_uri'],
+            video_s3_key=model['video_s3_key'],
             thumbnail_url=thumbnail_url,  # sostituisci con presigned URL
             thumbnail_s3_key='',  # sostituisci con presigned URL
             title=model['title'],
+            description=description,
+            engine=model['engine'],
             output_url=output_url,  # sostituisci con presigned URL
+            error_message = error_message,
             output_s3_key='',
             status=model['status'],
             created_at=model['created_at'],
-            updated_at=model['updated_at']
+            updated_at=model['updated_at'],
+            results=results,
         )
 
     def list_models_from_db(self,
@@ -107,22 +119,29 @@ class ModelService:
         for model in models_cursor:
             thumbnail_s3_key = model.get('thumbnail_s3_key', None)
             output_s3_key = model.get('output_s3_key', None)
-
+            error_message = model.get('error_message', None)
+            description = model.get('description', None)
             # Controlla che la chiave non sia vuota prima di generare gli URL presignati
             thumbnail_url = repository_service.generate_presigned_url_download(thumbnail_s3_key) if thumbnail_s3_key else None
             output_url = repository_service.generate_presigned_url_download(output_s3_key) if output_s3_key else None
 
+             # Estrai i risultati se esistono, altrimenti metti None
+            results = model.get('results', None)
             print('URL SETTED')
 
             models.append(ModelResponse(
                 _id=str(model['_id']),
-                video_uri=model['video_uri'],
+                video_s3_key=model['video_s3_key'],
                 thumbnail_url=thumbnail_url,  # sostituisci con presigned URL
                 title=model['title'],
+                description=description,
                 output_url=output_url,  # sostituisci con presigned URL
                 status=model['status'],
+                engine=model['engine'],
+                error_message=error_message,
                 created_at=model['created_at'],
-                updated_at=model['updated_at']
+                updated_at=model['updated_at'],
+                results=results
             ))
 
             print('RESPONSE BUILT')

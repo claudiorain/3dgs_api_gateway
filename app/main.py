@@ -129,7 +129,7 @@ async def create_model(request: ModelCreateRequest):
         model = await model_service.create_model_in_db(request)
         print('MODEL:' + str(model))
         # Invia il job a RabbitMQ
-        queue_job_service.send_job(model['_id'])
+        queue_job_service.send_job(model['_id'],"video_download_queue")
         return model
      except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -200,14 +200,14 @@ async def get_upload_url(request: PresignedUrlRequest):
     """
     # 1️⃣ Genera UUID per la cartella del modello
     model_id = str(uuid4())
-    s3_key = f"models/{model_id}/{request.filename}"  # File all'interno della cartella
+    s3_key = f"work/{model_id}/{request.filename}"  # File all'interno della cartella
 
     try:
         presigned_url = repository_service.generate_presigned_url_upload(
             s3_key,request.content_type
         )
        
-        response = {"model_id": model_id, "upload_url": presigned_url,"video_uri": s3_key}
+        response = {"model_id": model_id, "upload_url": presigned_url,"video_s3_key": s3_key}
         # Logga la risposta
         print(f"RESPONSE: {response}")
 
