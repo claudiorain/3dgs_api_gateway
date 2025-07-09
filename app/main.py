@@ -5,6 +5,7 @@ from fastapi import FastAPI, Depends, HTTPException, Security,Query,status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBasic, HTTPBasicCredentials
 import secrets  # Per confrontare le password in modo sicuro
+import os
 from uuid import UUID, uuid4
 from datetime import datetime,timedelta
 import jwt
@@ -20,6 +21,9 @@ from app.models.user import UserRegistration
 from app.services.user_service import get_user
 from app.services.user_service import create_user
 from app.config.db import init_db
+
+# Cartella principale per i video sorgente
+S3_VIDEOS_PREFIX = os.getenv('S3_VIDEOS_PREFIX', 'videos/')
 
 # Secret Key per JWT
 SECRET_KEY = "supersecretkey"
@@ -127,11 +131,29 @@ async def create_model(request: ModelCreateRequest):
      try:
         # Chiama il servizio per creare il modello in MongoDB
         model = await model_service.create_model_in_db(request)
-        print('MODEL:' + str(model))
         # Invia il job a RabbitMQ
-        queue_job_service.send_job(model['_id'],"video_download_queue")
+        queue_job_service.send_job(model.id,model.current_phase)
         return model
      except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+     
+@app.post("/models/{model_id}/retry", response_model=ModelResponse, dependencies=[Depends(verify_basic_auth)])
+async def retry_model(model_id: str):
+    try:
+        # Recupera il modello esistente dal database
+        model = await model_service.update_model_for_retry(model_id)
+        
+        if not model:
+            raise HTTPException(status_code=404, detail="Model not found")
+        
+        queue_job_service.send_job(model.id, model.current_phase)
+        
+        return model
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (come 404)
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 # 2️⃣ Endpoint per ottenere la lista dei modelli con paginazione e sorting
@@ -199,15 +221,15 @@ async def get_upload_url(request: PresignedUrlRequest):
     Il file verrà caricato dentro una cartella con il nome dell'UUID.
     """
     # 1️⃣ Genera UUID per la cartella del modello
-    model_id = str(uuid4())
-    s3_key = f"work/{model_id}/{request.filename}"  # File all'interno della cartella
+    upload_id = str(uuid4())
+    s3_key = f"{S3_VIDEOS_PREFIX}/{upload_id}/{request.filename}"  # File all'interno della cartella
 
     try:
         presigned_url = repository_service.generate_presigned_url_upload(
             s3_key,request.content_type
         )
        
-        response = {"model_id": model_id, "upload_url": presigned_url,"video_s3_key": s3_key}
+        response = {"upload_id": upload_id, "upload_url": presigned_url,"video_s3_key": s3_key}
         # Logga la risposta
         print(f"RESPONSE: {response}")
 

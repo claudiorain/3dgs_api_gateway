@@ -90,3 +90,103 @@ class RepositoryService:
             return url
         except NoCredentialsError:
             raise Exception("Credenziali AWS mancanti o non valide.")
+        
+    async def copy_s3_file(self, source_path: str, destination_path: str):
+        """
+        Copia un singolo file da un path S3 a un altro
+        
+        Args:
+            source_path: Path sorgente del file (es: s3://bucket/folder/file.txt)
+            destination_path: Path destinazione del file (es: s3://bucket/folder2/file.txt)
+        """
+        try:
+            print(f"📁 Copying S3 file from {source_path} to {destination_path}")
+            
+            # Rimuovi s3:// prefix se presente
+            source_key = source_path.replace(f"s3://{S3_BUCKET}/", "")
+            dest_key = destination_path.replace(f"s3://{S3_BUCKET}/", "")
+            
+            # Verifica che il file sorgente esista
+            try:
+                self.client.head_object(Bucket=S3_BUCKET, Key=source_key)
+            except self.client.exceptions.NoSuchKey:
+                raise FileNotFoundError(f"Source file not found: {source_path}")
+            
+            # Copia il file
+            copy_source = {
+                'Bucket': S3_BUCKET,
+                'Key': source_key
+            }
+            
+            self.client.copy_object(
+                Bucket=S3_BUCKET,
+                CopySource=copy_source,
+                Key=dest_key
+            )
+            
+            print(f"✅ Successfully copied file from {source_path} to {destination_path}")
+            return True
+        
+        except Exception as e:
+            print(f"❌ Error copying S3 file: {e}")
+            raise e
+            
+    async def copy_s3_folder(self, source_path: str, destination_path: str):
+        """
+        Copia ricorsivamente tutti gli oggetti da una cartella S3 a un'altra
+        
+        Args:
+            source_path: Path sorgente (es: "models/parent_id/")
+            destination_path: Path destinazione (es: "models/new_id/")
+        """
+        try:
+            print(f"📁 Copying S3 folder from {source_path} to {destination_path}")
+            
+            # Rimuovi s3:// prefix se presente
+            source_prefix = source_path.replace(f"s3://{S3_BUCKET}/", "")
+            dest_prefix = destination_path.replace(f"s3://{S3_BUCKET}/", "")
+            
+            # Lista tutti gli oggetti nella cartella sorgente
+            paginator = self.client.get_paginator('list_objects_v2')
+            page_iterator = paginator.paginate(
+                Bucket=S3_BUCKET,
+                Prefix=source_prefix
+            )
+            
+            copied_count = 0
+            
+            # Itera attraverso tutti gli oggetti
+            for page in page_iterator:
+                if 'Contents' not in page:
+                    continue
+                    
+                for obj in page['Contents']:
+                    source_key = obj['Key']
+                    
+                    # Calcola chiave destinazione sostituendo il prefix
+                    relative_path = source_key[len(source_prefix):]
+                    dest_key = dest_prefix + relative_path
+                    
+                    # Copia l'oggetto
+                    copy_source = {
+                        'Bucket': S3_BUCKET,
+                        'Key': source_key
+                    }
+                    
+                    self.client.copy_object(
+                        Bucket=S3_BUCKET,
+                        CopySource=copy_source,
+                        Key=dest_key
+                    )
+                    
+                    copied_count += 1
+                    
+                    if copied_count % 10 == 0:  # Log ogni 10 file
+                        print(f"  📄 Copied {copied_count} files...")
+            
+            print(f"✅ Successfully copied {copied_count} files from {source_path} to {destination_path}")
+            return copied_count
+        
+        except Exception as e:
+            print(f"❌ Error copying S3 folder: {e}")
+            raise e
