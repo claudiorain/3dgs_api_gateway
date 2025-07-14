@@ -1,11 +1,13 @@
 from http.client import HTTPException
-from typing import List, Optional
+from typing import List, Optional,Set
 from passlib.context import CryptContext
-from fastapi import FastAPI, Depends, HTTPException, Security,Query,status
+from fastapi import FastAPI, Depends, HTTPException, Security,Query,status,WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBasic, HTTPBasicCredentials
 import secrets  # Per confrontare le password in modo sicuro
 import os
+import json
+from app.config.db import add_change_listener
 from uuid import UUID, uuid4
 from datetime import datetime,timedelta
 import jwt
@@ -21,6 +23,7 @@ from app.models.user import UserRegistration
 from app.services.user_service import get_user
 from app.services.user_service import create_user
 from app.config.db import init_db
+from app.utils.notification_utils import process_and_send_notification
 
 # Cartella principale per i video sorgente
 S3_VIDEOS_PREFIX = os.getenv('S3_VIDEOS_PREFIX', 'videos/')
@@ -31,6 +34,8 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 security = HTTPBasic()
+# Connessioni WebSocket attive
+active_connections: Set[WebSocket] = set()
 
 def verify_basic_auth(credentials: HTTPBasicCredentials = Security(security)):
     valid_username = "admin"
@@ -80,16 +85,6 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-
-
-# Inizializza il database all'avvio dell'app
-@app.on_event("startup")
-async def startup_db():
-    init_db()
-
-
 
 @app.post("/register")
 async def register_user(user: UserRegistration,dependencies=[Depends(verify_basic_auth)]):
@@ -239,6 +234,38 @@ async def get_upload_url(request: PresignedUrlRequest):
         print(f"ERRORE: {str(e)}")
         return {"error": str(e)}
 
+
+async def notify_clients(change_data: dict):
+    """Processore principale delle notifiche - ora super pulito!"""
+    await process_and_send_notification(change_data, active_connections)
+
+@app.websocket("/ws/notifications")
+async def websocket_notifications(websocket: WebSocket):
+    """Endpoint WebSocket per ricevere notifiche real-time"""
+    await websocket.accept()
+    active_connections.add(websocket)
+    
+    print(f"Client connected. Total connections: {len(active_connections)}")
+    
+    try:
+        # Mantieni la connessione attiva con heartbeat
+        while True:
+            data = await websocket.receive_text()
+            # Opzionale: gestisci messaggi dal client (ping/pong)
+            if data == "ping":
+                await websocket.send_text("pong")
+    except Exception as e:
+        print(f"WebSocket connection error: {e}")
+    finally:
+        active_connections.discard(websocket)
+        print(f"Client disconnected. Total connections: {len(active_connections)}")
+
+@app.on_event("startup")
+async def startup_db():
+    init_db()
+    # Registra il listener per le notifiche
+    add_change_listener(notify_clients)
+    print("Notification system initialized")        
     
 @app.get("/health")
 async def health_check():

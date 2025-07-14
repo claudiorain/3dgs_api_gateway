@@ -195,7 +195,8 @@ class ModelService:
             if  phase_data.status in [PhaseStatus.FAILED, PhaseStatus.RUNNING, PhaseStatus.PENDING]:
                 interrupted_phase = phase_name
                 break
-        
+        print(f"1")
+
         if not interrupted_phase:
             raise ValueError(f"No INTERRUPTED phase found for model {model_id}")
         
@@ -204,13 +205,15 @@ class ModelService:
         # Prepara gli aggiornamenti
         update_data = {
             "overall_status": "RUNNING",
-            "current_phase": interrupted_phase.value,
+            "current_phase": interrupted_phase,
             "updated_at": current_time,
-            f"phases.{interrupted_phase.value}.status": "PENDING",
-            f"phases.{ interrupted_phase.value}.started_at": None,
-            f"phases.{ interrupted_phase.value}.completed_at": None,
-            f"phases.{ interrupted_phase.value}.error_message": None
+            f"phases.{interrupted_phase}.status": "PENDING",
+            f"phases.{interrupted_phase}.started_at": None,
+            f"phases.{interrupted_phase}.completed_at": None,
+            f"phases.{interrupted_phase}.error_message": None
         }
+
+        print(f"2")
 
         try:
             # Aggiorna il documento in MongoDB
@@ -222,8 +225,9 @@ class ModelService:
             if result.matched_count == 0:
                 raise ValueError(f"Model {model_id} not found in database")
             
-            print(f"✅ Model {model_id} updated for retry. Phase {interrupted_phase.value} reset to PENDING")
-            
+            print(f"✅ Model {model_id} updated for retry. Phase {interrupted_phase} reset to PENDING")
+            print(f"5")
+
             # Ritorna il modello aggiornato
             return self.get_model_by_id(UUID(model_id))
         
