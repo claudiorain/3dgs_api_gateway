@@ -6,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBasic, HTTPBasicCredentials
 import secrets  # Per confrontare le password in modo sicuro
 import os
-import json
 from app.config.db import add_change_listener
 from uuid import UUID, uuid4
 from datetime import datetime,timedelta
@@ -18,7 +17,6 @@ from app.models.model import ModelResponse  # Assumendo che il tuo modello sia i
 from app.models.model import PaginatedModelResponse  # Assumendo che il tuo modello sia in models.py
 from app.models.model import ModelCreateRequest  # Assumendo che il tuo modello sia in models.py
 from app.models.model import PresignedUrlRequest  # Assumendo che il tuo modello sia in models.py
-from app.models.user import UserInDB
 from app.models.user import UserRegistration
 from app.services.user_service import get_user
 from app.services.user_service import create_user
@@ -31,7 +29,6 @@ S3_VIDEOS_PREFIX = os.getenv('S3_VIDEOS_PREFIX', 'videos/')
 # Secret Key per JWT
 SECRET_KEY = "supersecretkey"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 security = HTTPBasic()
 # Connessioni WebSocket attive
