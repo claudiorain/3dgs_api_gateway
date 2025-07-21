@@ -25,9 +25,9 @@ class ModelService:
         """Inizializza la connessione a MongoDB."""
         self.db = get_database()  # Ottieni il database con il client asincrono
 
-    def _validate_clone_prerequisites(self, parent_project: ModelResponse, from_phase_str: str):
+    def _validate_fork_prerequisites(self, parent_project: ModelResponse, from_phase_str: str):
         """Valida che il parent abbia completato le fasi prerequisite"""
-        phase_order = [Phase.FRAME_EXTRACTION, Phase.POINT_CLOUD_BUILDING, 
+        phase_order = [Phase.FRAME_EXTRACTION, Phase.POINT_CLOUD_BUILDING, Phase.DEPTH_REGULARIZATION,
                        Phase.TRAINING]
         
         from_phase = Phase(from_phase_str)  # Converte "frame_extraction" in Phase.FRAME_EXTRACTION
@@ -49,7 +49,7 @@ class ModelService:
             if phase_status not in [PhaseStatus.COMPLETED, PhaseStatus.FAILED]:
                 raise ValueError(
                     f"Parent project must have completed {required_phase} "
-                    f"before cloning from {from_phase_str}. Current status: {phase_status}"
+                    f"before forking from {from_phase_str}. Current status: {phase_status}"
                 )
     # Funzione per creare un modello nel DB
     async def create_model_in_db(self, request: ModelCreateRequest) -> ModelResponse:
@@ -94,24 +94,24 @@ class ModelService:
         
             # 2. Valida che la fase from sia disponibile nel parent
             current_phase = request.from_phase
-            self._validate_clone_prerequisites(parent_model, current_phase)
+            self._validate_fork_prerequisites(parent_model, current_phase)
 
             
 
             # 4. Determina fasi da copiare (fino a from_phase esclusa)
-            phase_order = ["frame_extraction", "point_cloud_building", "training"]
+            phase_order = ["frame_extraction", "point_cloud_building","depth_regularization", "training"]
             until_phase_idx = phase_order.index(current_phase)
             phases_to_copy = phase_order[:until_phase_idx]
 
             # 5. Copia fasi come SKIPPED
-            cloned_phases = {}
+            skipped_phases = {}
             for phase in phases_to_copy:
                 phase_str = phase if isinstance(phase, str) else phase.value
                 parent_phases_dict = {str(k): v for k, v in parent_model.phases.items()}
 
                 if phase_str in parent_phases_dict:
                     parent_phase = parent_phases_dict[phase_str]
-                    cloned_phases[phase_str] = {
+                    skipped_phases[phase_str] = {
                         "status": "SKIPPED",
                         "started_at": parent_phase.started_at,
                         "completed_at": parent_phase.completed_at,
@@ -121,7 +121,7 @@ class ModelService:
         
             
             # 6. Aggiungi fase from come PENDING
-            cloned_phases[current_phase] = {
+            skipped_phases[current_phase] = {
                 "status": "PENDING",
                 "started_at": None,
                 "completed_at": None,
@@ -130,11 +130,11 @@ class ModelService:
             }
             print(f"current_phase: {current_phase}")
             print(f"phases_to_copy: {phases_to_copy}")
-            print(f"cloned_phases keys: {list(cloned_phases.keys())}")
-            for phase, data in cloned_phases.items():
+            print(f"skipped_phases keys: {list(skipped_phases.keys())}")
+            for phase, data in skipped_phases.items():
                 print(f"Phase {phase}: status={data['status']}")
 
-            # 7. Crea documento progetto clonato
+            # 7. Crea documento progetto biforcato
             model_data = {
                 "_id": model_id,
                 "video_s3_key": parent_model.video_s3_key,  # Stesso video
@@ -150,7 +150,7 @@ class ModelService:
                     "quality_level":request.quality_level
                 },
                 
-                "phases": cloned_phases,
+                "phases": skipped_phases,
                 "overall_status": "PENDING",
                 "current_phase": current_phase,
                 
@@ -162,12 +162,12 @@ class ModelService:
 
             # 🖼️ COPIA SOLO LA THUMBNAIL (i file delle fasi verranno gestiti dai ZIP di staging)
             try:
-                await self.copy_thumbnail_for_cloned_model(
+                await self.copy_thumbnail_for_forked_model(
                     parent_model_id=request.parent_model_id,
                     new_model_id=model_id,
                     thumbnail_suffix=parent_model.thumbnail_suffix
                 )
-                print(f"✅ Thumbnail copied for cloned model {model_id}")
+                print(f"✅ Thumbnail copied for forked model {model_id}")
             except Exception as e:
                 print(f"⚠️ Warning: Could not copy thumbnail: {e}")
                 # Non bloccare la creazione del modello per errori di thumbnail
@@ -331,13 +331,13 @@ class ModelService:
             ))
         return models, total_count
 
-    async def copy_thumbnail_for_cloned_model(self, parent_model_id: str, new_model_id: str,thumbnail_suffix: str):
+    async def copy_thumbnail_for_forked_model(self, parent_model_id: str, new_model_id: str,thumbnail_suffix: str):
         """
         Copia solo la thumbnail dal parent model al nuovo model in delivery.
         
         Args:
             parent_model_id: ID del modello parent
-            new_model_id: ID del nuovo modello clonato
+            new_model_id: ID del nuovo modello biforcato
         """
         try:
             # Costruisci i percorsi S3 usando le costanti standardizzate

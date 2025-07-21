@@ -14,6 +14,7 @@ class PhaseStatus(Enum):
 class Phase(str,Enum):
     FRAME_EXTRACTION = "frame_extraction"
     POINT_CLOUD_BUILDING = "point_cloud_building"
+    DEPTH_REGULARIZATION = "depth_regularization"
     TRAINING = "training"
     UPLOAD = "upload"
     METRICS = "metrics_evaluation"
@@ -29,6 +30,7 @@ class Engine(Enum):
 PHASE_TO_QUEUE = {
     Phase.FRAME_EXTRACTION: "frame_extraction_queue",
     Phase.POINT_CLOUD_BUILDING: "point_cloud_queue",
+    Phase.DEPTH_REGULARIZATION: "depth_regularization_queue",
     Phase.TRAINING: "model_training_queue",
     Phase.UPLOAD: "upload_queue",
     Phase.METRICS: "metrics_generation_queue"
@@ -99,7 +101,7 @@ class ModelCreateRequest(BaseModel):
             raise ValueError('from_phase not allowed for new videos (always starts from frame_extraction)')
         
         if parent_model_id and v is None:
-            raise ValueError('from_phase required when cloning from parent_model_id')
+            raise ValueError('from_phase required when forking from parent_model_id')
             
         return v
     
