@@ -27,7 +27,7 @@ class ModelService:
 
     def _validate_fork_prerequisites(self, parent_project: ModelResponse, from_phase_str: str):
         """Valida che il parent abbia completato le fasi prerequisite"""
-        phase_order = [Phase.FRAME_EXTRACTION, Phase.POINT_CLOUD_BUILDING, Phase.DEPTH_REGULARIZATION,
+        phase_order = [Phase.FRAME_EXTRACTION, Phase.POINT_CLOUD_BUILDING, 
                        Phase.TRAINING]
         
         from_phase = Phase(from_phase_str)  # Converte "frame_extraction" in Phase.FRAME_EXTRACTION
@@ -99,7 +99,7 @@ class ModelService:
             
 
             # 4. Determina fasi da copiare (fino a from_phase esclusa)
-            phase_order = ["frame_extraction", "point_cloud_building","depth_regularization", "training"]
+            phase_order = ["frame_extraction", "point_cloud_building", "training"]
             until_phase_idx = phase_order.index(current_phase)
             phases_to_copy = phase_order[:until_phase_idx]
 
