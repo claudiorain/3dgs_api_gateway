@@ -9,6 +9,7 @@ from app.models.model import ModelCreateRequest  # Assumendo che il tuo modello 
 from app.services.repository_service import RepositoryService
 from app.models.model import Phase,PhaseStatus  # Assumendo che il tuo modello sia in models.py
 import os
+import mimetypes
 
 # Configurazione MongoDB
 S3_STAGING_PREFIX = os.getenv('S3_STAGING_PREFIX', 'staging')
@@ -17,6 +18,7 @@ S3_STAGING_PREFIX = os.getenv('S3_STAGING_PREFIX', 'staging')
 S3_DELIVERY_PREFIX = os.getenv('S3_DELIVERY_PREFIX', 'delivery')
 
 repository_service = RepositoryService()
+# ✅ MIME ammessi (aggiunto lo zip)
 
 # Esempio di connessione al DB
 class ModelService:
@@ -204,7 +206,7 @@ class ModelService:
     
         # Prepara gli aggiornamenti
         update_data = {
-            "overall_status": "RUNNING",
+            "overall_status": "PENDING",
             "current_phase": interrupted_phase,
             "updated_at": current_time,
             f"phases.{interrupted_phase}.status": "PENDING",
@@ -279,7 +281,8 @@ class ModelService:
         sort_by: Optional[str],
         order: Optional[str],
         title_filter: Optional[str] = None,
-        status_filter: Optional[List[str]] = None
+        status_filter: Optional[List[str]] = None,
+        engine_filter: Optional[List[str]] = None
     ) -> Tuple[List[ModelResponse], int]:
     
         # Imposta il campo di ordinamento
@@ -295,6 +298,8 @@ class ModelService:
             filters["title"] = {"$regex": title_filter, "$options": "i"}
         if status_filter:
             filters["overall_status"] = {"$in": status_filter}
+        if engine_filter:
+            filters["training_config.engine"] = {"$in": engine_filter}
         
         # Conta il numero totale di modelli
         total_count = self.db['models'].count_documents(filters)
@@ -395,5 +400,4 @@ class ModelService:
                 thumbnail_s3_key = f"{S3_DELIVERY_PREFIX}/{model['_id']}/{thumbnail_suffix}"
                 thumbnail_url = repository_service.generate_presigned_url_download(thumbnail_s3_key)
         return thumbnail_url
-    
     

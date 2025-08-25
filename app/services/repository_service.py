@@ -38,9 +38,6 @@ class RepositoryService:
         try:
             print(f"s3_key: {s3_key}")
             print(f"content_type: {content_type}")
-            print(f"s3_key type: {type(s3_key)}")
-            print(f"content_type type: {type(content_type)}")
-            print(f"content_type type: {type(S3_BUCKET)}")
 
             url = self.client.generate_presigned_url(
                 "put_object",

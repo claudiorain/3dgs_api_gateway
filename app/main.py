@@ -22,9 +22,12 @@ from app.services.user_service import get_user
 from app.services.user_service import create_user
 from app.config.db import init_db
 from app.utils.notification_utils import process_and_send_notification
+from pathlib import Path
 
 # Cartella principale per i video sorgente
 S3_VIDEOS_PREFIX = os.getenv('S3_VIDEOS_PREFIX', 'videos/')
+S3_FRAMES_PREFIX = os.getenv('S3_FRAMES_PREFIX', 'frames/')
+
 
 # Secret Key per JWT
 SECRET_KEY = "supersecretkey"
@@ -138,7 +141,7 @@ async def retry_model(model_id: str):
         if not model:
             raise HTTPException(status_code=404, detail="Model not found")
         
-        queue_job_service.send_job(model.id, model.current_phase)
+        queue_job_service.send_job(model.id, model.current_phase,{"is_retry": True})
         
         return model
         
@@ -156,7 +159,8 @@ async def list_models(
     sort_by: Optional[str] = Query(None, regex="^(model_name|status|created_at)$"),
     order: Optional[str] = Query("asc", regex="^(asc|desc)$"),
     title: Optional[str] = Query(None),  # Filtro per model_name
-    status: Optional[List[str]] = Query(None)  # Filtro per status
+    status: Optional[List[str]] = Query(None),  # Filtro per status
+    engine: Optional[List[str]] = Query(None)  # Filtro per engine
 ):
     """
     Restituisce la lista dei modelli con paginazione, ordinamento e filtri opzionali.
@@ -164,7 +168,7 @@ async def list_models(
     print('Searching models')
     try:
         models, total_count = model_service.list_models_from_db(
-            page, limit, sort_by, order, title_filter=title, status_filter=status
+            page, limit, sort_by, order, title_filter=title, status_filter=status,engine_filter=engine
         )
         
         print('RESPONSE BUILT')
@@ -206,26 +210,38 @@ async def get_model(model_id: UUID):
         raise HTTPException(status_code=500, detail=str(e))
 
 # 1️⃣ Ottieni un Presigned URL per l'upload
-@app.post("/s3/upload-url/",dependencies=[Depends(verify_basic_auth)])
+@app.post("/s3/upload-url/", dependencies=[Depends(verify_basic_auth)])
 async def get_upload_url(request: PresignedUrlRequest):
     """
-    Genera un UUID per il modello e restituisce un URL presigned per l'upload.
-    Il file verrà caricato dentro una cartella con il nome dell'UUID.
+    Genera un UUID e restituisce una presigned URL per l'upload.
+    - .zip  -> caricato in S3_FRAMES_PREFIX
+    - .mp4  -> caricato in S3_VIDEOS_PREFIX
     """
-    # 1️⃣ Genera UUID per la cartella del modello
     upload_id = str(uuid4())
-    s3_key = f"{S3_VIDEOS_PREFIX}/{upload_id}/{request.filename}"  # File all'interno della cartella
+
+    ext = Path(request.filename).suffix.lower()
+    is_zip = ext == ".zip"
+
+    # scegli il prefix in base al tipo
+    prefix = S3_FRAMES_PREFIX if is_zip else S3_VIDEOS_PREFIX
+
+    # compone la chiave (senza doppio slash)
+    s3_key = f"{prefix.rstrip('/')}/{upload_id}/{request.filename}"
+
+    # usa il content_type passato o imposta un default sensato
+    content_type = request.content_type or ("application/zip" if is_zip else "video/mp4")
 
     try:
         presigned_url = repository_service.generate_presigned_url_upload(
-            s3_key,request.content_type
+            s3_key, content_type
         )
-       
-        response = {"upload_id": upload_id, "upload_url": presigned_url,"video_s3_key": s3_key}
-        # Logga la risposta
+        # ⚠️ retrocompat: manteniamo 'video_s3_key'
+        response = {
+            "upload_id": upload_id,
+            "upload_url": presigned_url,
+            "video_s3_key": s3_key,
+        }
         print(f"RESPONSE: {response}")
-
-        # 3️⃣ Restituisci UUID e URL per l'upload
         return response
     except Exception as e:
         print(f"ERRORE: {str(e)}")
