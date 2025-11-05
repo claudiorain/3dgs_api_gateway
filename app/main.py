@@ -1,6 +1,8 @@
 from http.client import HTTPException
 from typing import List, Optional,Set
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
+from pwdlib.hashers.argon2 import Argon2Hasher
+from pwdlib.hashers.bcrypt import BcryptHasher
 from fastapi import FastAPI, Depends, HTTPException, Security,Query,status,WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBasic, HTTPBasicCredentials
@@ -51,7 +53,11 @@ def verify_basic_auth(credentials: HTTPBasicCredentials = Security(security)):
 
 app = FastAPI()  # 🔥 Protegge TUTTE le API
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Configura pwdlib con supporto per bcrypt legacy e Argon2 per nuove password
+password_hash = PasswordHash((
+    Argon2Hasher(),  # Algoritmo principale per nuove password
+    BcryptHasher(),  # Compatibilità con password bcrypt esistenti
+))
 # Configura Basic Authentication
 
 # OAuth2 Bearer token per autenticazione
@@ -75,9 +81,9 @@ app.add_middleware(
 )
 
 def verify_password(plain_password, hashed_password):
-    print('plain: ' +plain_password )
-    print('hashed: ' +hashed_password )
-    return pwd_context.verify(plain_password, hashed_password)
+    print('plain: ' + plain_password)
+    print('hashed: ' + hashed_password)
+    return password_hash.verify(plain_password, hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None):

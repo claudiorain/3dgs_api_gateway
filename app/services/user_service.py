@@ -1,21 +1,28 @@
 from app.models.user import UserInDB
 from app.config.db import users_collection
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
+from pwdlib.hashers.argon2 import Argon2Hasher
+from pwdlib.hashers.bcrypt import BcryptHasher
 from bson import ObjectId
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
+password_hash = PasswordHash((
+    Argon2Hasher(),  # Algoritmo principale per nuove password  
+    BcryptHasher(),  # Compatibilità con password bcrypt esistenti
+))
 # Funzione per hashare la password
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+def get_password_hash(password):
+    """Crea un hash della password usando Argon2 (algoritmo moderno)"""
+    return password_hash.hash(password)
 
 # Funzione per verificare la password
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    print('plain: ' + plain_password)
+    print('hashed: ' + hashed_password)
+    return password_hash.verify(plain_password, hashed_password)
 
 # Creare un nuovo utente
 def create_user(username: str, password: str, role: str = "user"):
-    hashed_password = hash_password(password)
+    hashed_password = get_password_hash(password)
     user = UserInDB(username=username, hashed_password=hashed_password, role=role)
     result = users_collection.insert_one(user.dict())
     return str(result.inserted_id)
